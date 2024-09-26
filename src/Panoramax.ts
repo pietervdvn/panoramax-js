@@ -109,6 +109,11 @@ export class AuthorizedPanoramax extends Panoramax {
     private _bearerToken: string;
 
 
+    /**
+     * To get a bearer token, go to your panoramax instance > settings and copy the token
+     * @param url
+     * @param bearerToken
+     */
     constructor(url: string, bearerToken: string) {
         super(url);
         this._bearerToken = bearerToken;

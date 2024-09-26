@@ -159,8 +159,8 @@ export class AuthorizedPanoramax extends Panoramax {
     }, options?: {
         datetime?: string,
         lon?: number, // WGS84
-        lat?: number // WGS84
-
+        lat?: number, // WGS84
+        exifOverride?: Record<string, string>
     }): Promise<Feature<Point> & {id: string}> {
         let seqId: string
         if (typeof sequence !== "string") {
@@ -181,6 +181,12 @@ export class AuthorizedPanoramax extends Panoramax {
         }
         if(options?.datetime){
             body.append("override_capture_time", ""+options.datetime )
+        }
+        for (const key in options?.exifOverride ?? {}) {
+            const value = options?.exifOverride?.[key]
+            if(value){
+                body.append("override_Exif.Image."+key, value)
+            }
         }
         body.append("picture", image)
 

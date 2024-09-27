@@ -1,5 +1,5 @@
 import {FeatureService, ICollection, IGetCollectionsResponse, ILink} from "@ogcapi-js/features";
-import {Feature, Point} from "geojson";
+import {Feature, FeatureCollection, Point} from "geojson";
 
 export interface Extent {
     spatial: {
@@ -8,6 +8,15 @@ export interface Extent {
     temporal: {
         interval: [Date, Date]
     }
+}
+
+
+export type ImageData =
+    Feature<Point, { "geovisio:producer": string, "geovisio:license": string, "datetime": string, "geovisio:status": string | "ready" | "broken" | "preparing" | "waiting-for-process" }>
+    & {
+    id: string,
+    assets: { hd: { href: string }, sd: { href: string } },
+    providers: { name: string }[]
 }
 
 export interface Sequence extends ICollection {
@@ -27,6 +36,37 @@ export interface Sequence extends ICollection {
     updated: Date
 }
 
+/**
+ * Panoramax.xyz is a centralized service which aggregates many servers
+ */
+export class PanoramaxXYZ {
+    private _host: string;
+
+    constructor(host = "https://api.panoramax.xyz/api") {
+        this._host = host;
+    }
+
+    public async imageInfo(imageId: string) {
+        const url = this.url("search?limit=1&ids=" + imageId)
+        const metaAll = await this.fetchJson<FeatureCollection>(url)
+        return <any>metaAll.features[0]
+    }
+
+    public async fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+        const res = await fetch(url, init);
+
+        if (!res.ok) {
+            throw new Error(res.statusText);
+        }
+
+        return <T>await res.json();
+    }
+
+    public url(...endpoint: string[]) {
+        return this._host + endpoint.join("/") + "/"
+    }
+
+}
 
 export class Panoramax {
     private _url: string;
@@ -87,6 +127,14 @@ export class Panoramax {
         return this.fetchJson<Token>(this.url("auth", "tokens", "generate") + "?description=" + encodeURIComponent(description), {
             method: "POST",
         })
+    }
+
+    public async imageInfo(sequenceId: string, imageId: string) {
+        return this.fetchJson<ImageData>(this.url("collections", sequenceId, "items", imageId))
+    }
+
+    public login(token: string): AuthorizedPanoramax {
+        return new AuthorizedPanoramax(this._url, token)
     }
 
 }
@@ -161,7 +209,7 @@ export class AuthorizedPanoramax extends Panoramax {
         lon?: number, // WGS84
         lat?: number, // WGS84
         exifOverride?: Record<string, string>
-    }): Promise<Feature<Point> & {id: string}> {
+    }): Promise<Feature<Point> & { id: string }> {
         let seqId: string
         if (typeof sequence !== "string") {
             seqId = sequence.id
@@ -170,22 +218,22 @@ export class AuthorizedPanoramax extends Panoramax {
         }
 
         const body = new FormData()
-        body.append("isBlurred","false")
+        body.append("isBlurred", "false")
         const position = sequence["stats:items"].count + 1 // position starts from 1
-        body.append("position", ""+position)
-        if(options?.lat){
-            body.append("override_latitude", ""+options.lat )
+        body.append("position", "" + position)
+        if (options?.lat) {
+            body.append("override_latitude", "" + options.lat)
         }
-        if(options?.lon){
-            body.append("override_longitude", ""+options.lon )
+        if (options?.lon) {
+            body.append("override_longitude", "" + options.lon)
         }
-        if(options?.datetime){
-            body.append("override_capture_time", ""+options.datetime )
+        if (options?.datetime) {
+            body.append("override_capture_time", "" + options.datetime)
         }
         for (const key in options?.exifOverride ?? {}) {
             const value = options?.exifOverride?.[key]
-            if(value){
-                body.append("override_Exif.Image."+key, value)
+            if (value) {
+                body.append("override_Exif.Image." + key, value)
             }
         }
         body.append("picture", image)

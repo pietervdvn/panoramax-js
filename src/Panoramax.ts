@@ -114,7 +114,7 @@ export class Panoramax {
         }
     }
 
-    public url(...endpoint: string[]) {
+    public url(...endpoint: string[]): string {
         return this._url + endpoint.join("/") + "/"
     }
 
@@ -123,14 +123,16 @@ export class Panoramax {
 
      The response contains the claim route as a link with rel=claim
      */
-    public async generateToken(description: string) {
+    public async generateToken(description: string): Promise<Token> {
         return this.fetchJson<Token>(this.url("auth", "tokens", "generate") + "?description=" + encodeURIComponent(description), {
             method: "POST",
         })
     }
 
-    public async imageInfo(sequenceId: string, imageId: string) {
-        return this.fetchJson<ImageData>(this.url("collections", sequenceId, "items", imageId))
+    public async imageInfo(sequenceId: string, imageId: string, timeoutMs: number = 5000): Promise<ImageData> {
+        return this.fetchJson<ImageData>(this.url("collections", sequenceId, "items", imageId), {
+            signal: AbortSignal.timeout(timeoutMs)
+        })
     }
 
     public login(token: string): AuthorizedPanoramax {

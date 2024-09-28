@@ -42,7 +42,13 @@ export interface Sequence extends ICollection {
 export class PanoramaxXYZ {
     private _host: string;
 
-    constructor(host = "https://api.panoramax.xyz/api") {
+    constructor(host = "https://api.panoramax.xyz/api/") {
+        if(!host.endsWith("/")){
+            host += "/"
+        }
+        if(!host.endsWith("api/")){
+            host += "api/"
+        }
         this._host = host;
     }
 
@@ -63,7 +69,7 @@ export class PanoramaxXYZ {
     }
 
     public url(...endpoint: string[]) {
-        return this._host + endpoint.join("/") + "/"
+        return this._host + endpoint.join("/")
     }
 
 }
@@ -80,6 +86,17 @@ export class Panoramax {
         }
         this._url = url;
         new URL(url) // Validate the URL
+    }
+
+
+    public static readonly idFormat = /[a-z0-9]{8}-([a-z0-9]{4}-){3}[a-z0-9]{12}/
+
+    /**
+     * Checks if a given string follows the panoramax id format
+     * @param id
+     */
+    public static isId(id: string): boolean {
+        return id.match(Panoramax.idFormat) !== null
     }
 
     public async fetchJson<T>(url: string, init?: RequestInit): Promise<T> {

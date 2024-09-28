@@ -1,5 +1,6 @@
 import {FeatureService, ICollection, IGetCollectionsResponse, ILink} from "@ogcapi-js/features";
 import {Feature, FeatureCollection, Point} from "geojson";
+import {MvtToGeojson} from "mvt-to-geojson";
 
 export interface Extent {
     spatial: {
@@ -12,11 +13,43 @@ export interface Extent {
 
 
 export type ImageData =
-    Feature<Point, { "geovisio:producer": string, "geovisio:license": string, "datetime": string, "geovisio:status": string | "ready" | "broken" | "preparing" | "waiting-for-process" }>
+    Feature<Point, {
+        "geovisio:producer": string,
+        "geovisio:license": string,
+        "datetime": string,
+        "geovisio:status": string | "ready" | "broken" | "preparing" | "waiting-for-process"
+    }>
     & {
     id: string,
     assets: { hd: { href: string }, sd: { href: string } },
     providers: { name: string }[]
+}
+
+/**
+ * Properties of the pictures in the "map" endpoint
+ */
+export interface PictureProperties {
+
+    id: string
+    account_id: string
+    /**
+     * TimeStamp, probably an ISO-string
+     */
+    ts: string
+    /**
+     * COmpass angle in degrees
+     */
+    heading: number
+    /**
+     * list of sequences ID this pictures belongs to
+     */
+    sequences: string[]
+    type: "flat" | "equirectangular"
+
+    /**
+     * camera make and model
+     */
+    model: string
 }
 
 export interface Sequence extends ICollection {
@@ -39,40 +72,6 @@ export interface Sequence extends ICollection {
 /**
  * Panoramax.xyz is a centralized service which aggregates many servers
  */
-export class PanoramaxXYZ {
-    private _host: string;
-
-    constructor(host = "https://api.panoramax.xyz/api/") {
-        if(!host.endsWith("/")){
-            host += "/"
-        }
-        if(!host.endsWith("api/")){
-            host += "api/"
-        }
-        this._host = host;
-    }
-
-    public async imageInfo(imageId: string) {
-        const url = this.url("search?limit=1&ids=" + imageId)
-        const metaAll = await this.fetchJson<FeatureCollection>(url)
-        return <any>metaAll.features[0]
-    }
-
-    public async fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-        const res = await fetch(url, init);
-
-        if (!res.ok) {
-            throw new Error(res.statusText);
-        }
-
-        return <T>await res.json();
-    }
-
-    public url(...endpoint: string[]) {
-        return this._host + endpoint.join("/")
-    }
-
-}
 
 export class Panoramax {
     private _url: string;
@@ -131,7 +130,7 @@ export class Panoramax {
         }
     }
 
-    public url(...endpoint: string[]): string {
+    public url(...endpoint: (string | number)[]): string {
         return this._url + endpoint.join("/") + "/"
     }
 
@@ -156,7 +155,29 @@ export class Panoramax {
         return new AuthorizedPanoramax(this._url, token)
     }
 
+    public async imagesAt(x: number, y: number, z: number): Promise<Feature<Point, PictureProperties>[]> {
+        const url = this.url("map", z, x, y+ ".mvt")
+        const response = await fetch(url)
+        const buffer = await response.arrayBuffer()
+        return <any>await MvtToGeojson.fromBuffer(buffer, x, y,z,["pictures"])
+    }
+
 }
+
+export class PanoramaxXYZ extends Panoramax {
+
+    constructor(host = "https://api.panoramax.xyz/api/") {
+        super(host)
+    }
+
+    public async imageInfo(imageId: string) {
+        const url = this.url("search?limit=1&ids=" + imageId)
+        const metaAll = await this.fetchJson<FeatureCollection>(url)
+        return <any>metaAll.features[0]
+    }
+
+}
+
 
 interface Token {
     "description": "string",

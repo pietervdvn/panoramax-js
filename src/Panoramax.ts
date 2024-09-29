@@ -11,17 +11,38 @@ export interface Extent {
     }
 }
 
+export interface AssetLink {
+    description: string,
+    roles: string[],
+    href: string;
+    /**
+     * link type
+     */
+    type: string;
+    /**
+     * link title
+     */
+    title: string;
+
+}
 
 export type ImageData =
     Feature<Point, {
         "geovisio:producer": string,
         "geovisio:license": string,
+        /**
+         * Compass direction
+         */
+        "view:azimuth": number,
         "datetime": string,
-        "geovisio:status": string | "ready" | "broken" | "preparing" | "waiting-for-process"
+        "geovisio:status": string | "ready" | "broken" | "preparing" | "waiting-for-process",
+        exif: Record<string, string> & {
+            "Xmp.GPano.ProjectionType"?: string | "equirectangular"
+        }
     }>
     & {
     id: string,
-    assets: { hd: { href: string }, sd: { href: string } },
+    assets: { hd: AssetLink, sd: AssetLink, thumb: AssetLink },
     providers: { name: string }[]
 }
 
@@ -231,12 +252,32 @@ export class Panoramax {
      * @param sequenceId
      */
     public async imageInfo(imageId: string, sequenceId?: string): Promise<ImageData> {
+        let imageData: ImageData
         if (sequenceId) {
-            return this.fetchJson<ImageData>(this.url("collections", sequenceId, "items", imageId))
+            imageData = await this.fetchJson<ImageData>(this.url("collections", sequenceId, "items", imageId))
+        } else {
+            imageData = (await this.search({
+                ids: [imageId]
+            }))?.[0]
         }
-        return (await this.search({
-            ids: [imageId]
-        }))?.[0]
+        const a = imageData.assets
+        imageData.assets.sd = this.makeAbsolute(a.sd)
+        imageData.assets.hd = this.makeAbsolute(a.hd)
+        imageData.assets.thumb = this.makeAbsolute(a.thumb)
+
+        return imageData
+    }
+
+    private makeAbsolute(l: AssetLink): AssetLink {
+        if (l.href.startsWith("/")) {
+            const host = new URL(this._url)
+            const href = host.protocol + "//" + host.host + "/" + l.href
+            return {
+                ...l,
+                href
+            }
+        }
+        return l
     }
 
     public login(token: string): AuthorizedPanoramax {
@@ -272,7 +313,7 @@ export class Panoramax {
                 intersects: filters.intersects
             }
         }
-        const url = this.url("search") + "?"+options.join("&")
+        const url = this.url("search") + "?" + options.join("&")
 
         let result: { features: ImageData[] }
         if (body) {
@@ -283,11 +324,40 @@ export class Panoramax {
                 body: JSON.stringify(body)
             })
         } else {
+            console.log(url)
             result = await this.fetchJson(url)
         }
         return result.features
     }
 
+    /**
+     * Constructs a link to open in the browser, focusing on the given picture
+     */
+    public createViewLink(options: {
+        imageId?: string | undefined,
+        location?: { lon: number, lat: number },
+        zoom?: 15 | number
+        focus?: "pic" | "map"
+    }) {
+        const host = new URL(this._url).host
+
+        let url = "https://" + host + "/#"
+        const qp: string[] = []
+        let focus: string | undefined = options.focus
+        if (options.imageId) {
+            focus ??= "pic"
+            qp.push("pic=" + options.imageId)
+        }
+        if (options.location) {
+            focus ??= "map"
+            qp.push("map=" + (options.zoom ?? 15) + "/" + (options.location.lat) + "/" + options.location.lon)
+        }
+
+        if (focus) {
+            qp.push("focus=" + focus)
+        }
+        return url + qp.join("&")
+    }
 }
 
 export class PanoramaxXYZ extends Panoramax {

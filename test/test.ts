@@ -1,5 +1,4 @@
-import {AuthorizedPanoramax, ImageData, Panoramax} from "../src/Panoramax";
-import {FeatureCollection} from "geojson";
+import {Panoramax, PanoramaxXYZ} from "../src/Panoramax";
 
 async function test() {
     try {
@@ -15,6 +14,10 @@ async function test() {
             51.04743527668026]
         })
         console.log(images)
+        const threeD = await new PanoramaxXYZ().search({
+            ids:["611cbc5d-36e5-4c62-8660-18c14f66fdc0","0953fc35-9f70-4f93-9858-845dc51eb3a3"]
+        })
+        console.log(threeD)
         /*
                 const tokenBe="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnZW92aXNpbyIsInN1YiI6IjU5ZjgzOGI0LTM4ZjAtNDdjYi04OWYyLTM3NDQ3MWMxNTUxOCJ9.0rBioZS_48NTjnkIyN9497c3fQdTqtGgH1HDqlz1bWs"
                 const authBe = new AuthorizedPanoramax(urlbe, tokenBe)

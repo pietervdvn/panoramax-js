@@ -1,2 +1,2 @@
-export {Panoramax, AuthorizedPanoramax, Sequence, ImageData, PanoramaxXYZ} from "./Panoramax";
+export {Panoramax, AuthorizedPanoramax, Sequence, ImageData, PanoramaxXYZ, AssetLink} from "./Panoramax";
 

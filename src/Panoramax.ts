@@ -1,5 +1,5 @@
 import {FeatureService, ICollection, IGetCollectionsResponse, ILink} from "@ogcapi-js/features";
-import {Feature, FeatureCollection, Point} from "geojson";
+import {Feature, FeatureCollection, Point, MultiPoint, LineString, MultiLineString} from "geojson";
 import {MvtToGeojson} from "mvt-to-geojson";
 
 export interface Extent {
@@ -69,14 +69,90 @@ export interface Sequence extends ICollection {
     updated: Date
 }
 
+export interface SearchOptions {
+    /**
+     * Array of numbers or Array of numbers
+     *
+     * Only features that have a geometry that intersects the bounding box are selected. The bounding box is provided as four or six numbers, depending on whether the coordinate reference system includes a vertical axis (height or depth):
+     *
+     *     Lower left corner, coordinate axis 1
+     *     Lower left corner, coordinate axis 2
+     *     Minimum value, coordinate axis 3 (optional)
+     *     Upper right corner, coordinate axis 1
+     *     Upper right corner, coordinate axis 2
+     *     Maximum value, coordinate axis 3 (optional)
+     *
+     * The coordinate reference system of the values is WGS 84 longitude/latitude (http://www.opengis.net/def/crs/OGC/1.3/CRS84).
+     *
+     * For WGS 84 longitude/latitude the values are in most cases the sequence of minimum longitude, minimum latitude, maximum longitude and maximum latitude. However, in cases where the box spans the antimeridian the first value (west-most box edge) is larger than the third value (east-most box edge).
+     *
+     * If the vertical axis is included, the third and the sixth number are the bottom and the top of the 3-dimensional bounding box.
+     *
+     * If a feature has multiple spatial geometry properties, it is the decision of the server whether only a single spatial geometry property is used to determine the extent or all relevant geometries.
+     *
+     * Example: The bounding box of the New Zealand Exclusive Economic Zone in WGS 84 (from 160.6°E to 170°W and from 55.95°S to 25.89°S) would be represented in JSON as [160.6, -55.95, -170, -25.89] and in a query as bbox=160.6,-55.95,-170,-25.89.
+     */
+    bbox?: [number, number, number, number]
+
+    /**
+     * pointGeoJSON (object) or multipointGeoJSON (object) or linestringGeoJSON (object) or multilinestringGeoJSON (object) or polygonGeoJSON (object) or multipolygonGeoJSON (object) or geometrycollectionGeoJSON (object) (geometryGeoJSON)
+     *
+     * The optional intersects parameter filters the result Items in the same was as bbox, only with a GeoJSON Geometry rather than a bbox.
+     */
+    intersects?: Feature | FeatureCollection
+    /**
+     *
+     * string
+     *
+     * Either a date-time or an interval, open or closed. Date and time expressions adhere to RFC 3339. Open intervals are expressed using double-dots.
+     *
+     * Examples:
+     *
+     *     A date-time: "2018-02-12T23:20:50Z"
+     *     A closed interval: "2018-02-12T00:00:00Z/2018-03-18T12:31:12Z"
+     *     Open intervals: "2018-02-12T00:00:00Z/.." or "../2018-03-18T12:31:12Z"
+     *
+     * Only features that have a temporal property that intersects the value of datetime are selected.
+     *
+     * If a feature has multiple temporal properties, it is the decision of the server whether only a single temporal property is used to determine the extent or all relevant temporal properties.
+     */
+    datetime?: string
+    /**
+     * integer [ 1 .. 10000 ]
+     * Default: 10
+     *
+     * The optional limit parameter recommends the number of items that should be present in the response document.
+     *
+     * Only items are counted that are on the first level of the collection in the response document. Nested objects contained within the explicitly requested items must not be counted.
+     *
+     * Minimum = 1. Maximum = 10000. Default = 10.
+     */
+    limit?: number
+    /**
+     *
+     * Array of strings (ids)
+     *
+     * Array of Item ids to return.
+     */
+    ids?: string[]
+    /**
+     *
+     * Array of strings (collectionsArray)
+     *
+     * Array of Collection IDs to include in the search for items. Only Item objects in one of the provided collections will be searched
+     */
+    collections?: string[]
+}
+
 /**
  * Panoramax.xyz is a centralized service which aggregates many servers
  */
 
 export class Panoramax {
     private _url: string;
+    private timeoutAfterMs: number
 
-    constructor(url: string = "https://panoramax.openstreetmap.fr/") {
+    constructor(url: string = "https://panoramax.openstreetmap.fr/", timeoutMs: number = 10000) {
         if (!url.endsWith("/")) {
             url += "/"
         }
@@ -84,6 +160,7 @@ export class Panoramax {
             url += "api/"
         }
         this._url = url;
+        this.timeoutAfterMs = timeoutMs
         new URL(url) // Validate the URL
     }
 
@@ -99,6 +176,8 @@ export class Panoramax {
     }
 
     public async fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+        init ??= {}
+        init.signal = AbortSignal.timeout(this.timeoutAfterMs)
         const res = await fetch(url, init);
 
         if (!res.ok) {
@@ -117,6 +196,7 @@ export class Panoramax {
             baseUrl: this._url
         });
         const collections = await service.getCollections();
+
         for (const collection of collections.collections) {
             yield <Sequence>collection
         }
@@ -145,21 +225,67 @@ export class Panoramax {
         })
     }
 
-    public async imageInfo(sequenceId: string, imageId: string, timeoutMs: number = 5000): Promise<ImageData> {
-        return this.fetchJson<ImageData>(this.url("collections", sequenceId, "items", imageId), {
-            signal: AbortSignal.timeout(timeoutMs)
-        })
+    /**
+     * Searches for a single picture with the given ID. Uses `search` if no sequence ID is given
+     * @param imageId
+     * @param sequenceId
+     */
+    public async imageInfo(imageId: string, sequenceId?: string): Promise<ImageData> {
+        if (sequenceId) {
+            return this.fetchJson<ImageData>(this.url("collections", sequenceId, "items", imageId))
+        }
+        return (await this.search({
+            ids: [imageId]
+        }))?.[0]
     }
 
     public login(token: string): AuthorizedPanoramax {
         return new AuthorizedPanoramax(this._url, token)
     }
 
-    public async imagesAt(x: number, y: number, z: number): Promise<Feature<Point, PictureProperties>[]> {
-        const url = this.url("map", z, x, y+ ".mvt")
-        const response = await fetch(url)
-        const buffer = await response.arrayBuffer()
-        return <any>await MvtToGeojson.fromBuffer(buffer, x, y,z,["pictures"])
+    /**
+     * Searches all pictures matching the given filter
+     *
+     * Uses https://api.stacspec.org/v1.0.0/item-search/#tag/Item-Search
+     */
+    public async search(filters: SearchOptions): Promise<ImageData[]> {
+        const options: string[] = []
+        if (filters.bbox) {
+            options.push("bbox=" + filters.bbox.join(","))
+        }
+        if (filters.ids) {
+            options.push("ids=" + filters.ids.join(","))
+        }
+        if (filters.collections) {
+            options.push("collections=" + filters.collections.join(","))
+        }
+
+        if (filters.limit) {
+            options.push("limit=" + filters.limit)
+        }
+        if (filters.datetime) {
+            options.push("datetime=" + filters.datetime)
+        }
+        let body: object | undefined = undefined
+        if (filters.intersects) {
+            body = {
+                intersects: filters.intersects
+            }
+        }
+        const url = this.url("search") + "?"+options.join("&")
+
+        let result: { features: ImageData[] }
+        if (body) {
+            result = await this.fetchJson(url, {
+                headers: {
+                    "request/type": "application/json"
+                },
+                body: JSON.stringify(body)
+            })
+        } else {
+            result = await this.fetchJson(url)
+        }
+        return result.features
     }
 
 }
@@ -168,12 +294,6 @@ export class PanoramaxXYZ extends Panoramax {
 
     constructor(host = "https://api.panoramax.xyz/api/") {
         super(host)
-    }
-
-    public async imageInfo(imageId: string) {
-        const url = this.url("search?limit=1&ids=" + imageId)
-        const metaAll = await this.fetchJson<FeatureCollection>(url)
-        return <any>metaAll.features[0]
     }
 
 }

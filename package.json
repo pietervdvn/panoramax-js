@@ -1,6 +1,6 @@
 {
   "name": "panoramax-js",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A typescript library to upload images to panoramax, working both with nodejs and in browser",
   "homepage": "https://github.com/pietervdvn/panoramax-js",
   "bugs": "https://github.com/pietervdvn/panoramax-js/issues",
@@ -17,8 +17,7 @@
     "@ogcapi-js/features": "^1.1.1",
     "@ogcapi-js/shared": "^1.1.1",
     "@types/geojson": "^7946.0.14",
-    "json-schema": "^0.4.0",
-    "mvt-to-geojson": "^0.0.4"
+    "json-schema": "^0.4.0"
   },
   "devDependencies": {
     "@types/json-schema": "^7.0.15"

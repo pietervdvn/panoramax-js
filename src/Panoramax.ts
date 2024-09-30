@@ -252,6 +252,12 @@ export class Panoramax {
      * @param sequenceId
      */
     public async imageInfo(imageId: string, sequenceId?: string): Promise<ImageData> {
+        if(!Panoramax.isId(imageId)){
+            throw "Invalid imageId: "+imageId
+        }
+        if(sequenceId && !Panoramax.isId(sequenceId)){
+            throw "Invalid sequenceId: "+sequenceId
+        }
         let imageData: ImageData
         if (sequenceId) {
             imageData = await this.fetchJson<ImageData>(this.url("collections", sequenceId, "items", imageId))
@@ -295,9 +301,19 @@ export class Panoramax {
             options.push("bbox=" + filters.bbox.join(","))
         }
         if (filters.ids) {
+            for (const id of filters.ids) {
+                if(!Panoramax.isId(id)){
+                    throw "Invalid id in `ids`-list: "+id
+                }
+            }
             options.push("ids=" + filters.ids.join(","))
         }
         if (filters.collections) {
+            for (const id of filters.collections) {
+                if(!Panoramax.isId(id)){
+                    throw "Invalid id in `collections`-list: "+id
+                }
+            }
             options.push("collections=" + filters.collections.join(","))
         }
 
@@ -340,6 +356,10 @@ export class Panoramax {
         focus?: "pic" | "map"
     }) {
         const host = new URL(this._url).host
+
+        if(options.imageId && !Panoramax.isId(options.imageId)){
+            throw "Invalid imageId: "+options.imageId
+        }
 
         let url = "https://" + host + "/#"
         const qp: string[] = []

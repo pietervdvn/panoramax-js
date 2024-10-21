@@ -287,7 +287,7 @@ export class Panoramax {
     }
 
     public login(token: string): AuthorizedPanoramax {
-        return new AuthorizedPanoramax(this._url, token)
+        return new AuthorizedPanoramax(this._url, token, this.timeoutAfterMs)
     }
 
     /**
@@ -412,8 +412,8 @@ export class AuthorizedPanoramax extends Panoramax {
      * @param url
      * @param bearerToken
      */
-    constructor(url: string, bearerToken: string) {
-        super(url);
+    constructor(url: string, bearerToken: string, timeout?: number) {
+        super(url, timeout);
         this._bearerToken = bearerToken;
     }
 

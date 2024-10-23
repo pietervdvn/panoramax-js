@@ -1,6 +1,5 @@
 import {FeatureService, ICollection, IGetCollectionsResponse, ILink} from "@ogcapi-js/features";
-import {Feature, FeatureCollection, Point, MultiPoint, LineString, MultiLineString} from "geojson";
-import {MvtToGeojson} from "mvt-to-geojson";
+import {Feature, FeatureCollection, Point} from "geojson";
 
 export interface Extent {
     spatial: {
@@ -429,7 +428,7 @@ export class AuthorizedPanoramax extends Panoramax {
         const res = await this.fetch(url, init);
 
         if (!res.ok) {
-            throw new Error(res.statusText);
+            throw new Error(res.status+" "+res.statusText+": "+await res.text());
         }
 
         return <T>await res.json();
@@ -451,7 +450,7 @@ export class AuthorizedPanoramax extends Panoramax {
         return <any>collection.links.filter(l => l.rel === "child")
     }
 
-    public async addImage(image: File, sequence: {
+    public async addImage(image: Blob, sequence: {
         id: string,
         "stats:items": { count: number }
     }, options?: {

@@ -1,6 +1,6 @@
 {
   "name": "panoramax-js",
-  "version": "0.3.9",
+  "version": "0.3.10",
   "description": "A typescript library to upload images to panoramax, working both with nodejs and in browser",
   "homepage": "https://github.com/pietervdvn/panoramax-js",
   "bugs": "https://github.com/pietervdvn/panoramax-js/issues",

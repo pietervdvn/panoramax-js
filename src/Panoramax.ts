@@ -42,7 +42,8 @@ export type ImageData =
     & {
     id: string,
     assets: { hd: AssetLink, sd: AssetLink, thumb: AssetLink },
-    providers: { name: string }[]
+    providers: { name: string }[],
+    collection: string
 }
 
 /**
@@ -164,13 +165,38 @@ export interface SearchOptions {
     collections?: string[]
 }
 
+export const REPORT_REASONS = ["blur_missing",
+    "blur_excess",
+    "inappropriate",
+    "privacy",
+    "picture_low_quality",
+    "mislocated",
+    "copyright",
+    "other"] as const
+
+export type ReportReason = typeof REPORT_REASONS [number]
+
+export interface Report {
+    id: string,
+    issue: ReportReason,
+    status: "open" | "open_autofix" | "waiting" | "closed_solved" | "closed_ignored",
+    picture_id: string,
+    sequence_id: string,
+    /**
+     * Timestamp, iso-date
+     */
+    ts_opened: string
+    reporter_account_id: string,
+    reporter_comments?: string
+}
+
 /**
  * Panoramax.xyz is a centralized service which aggregates many servers
  */
 
 export class Panoramax {
-    private _url: string;
-    private timeoutAfterMs: number
+    public readonly host: string;
+    private readonly timeoutAfterMs: number
 
     constructor(url: string = "https://panoramax.openstreetmap.fr/", timeoutMs: number = 10000) {
         if (!url.endsWith("/")) {
@@ -179,7 +205,7 @@ export class Panoramax {
         if (!url.endsWith("api/")) {
             url += "api/"
         }
-        this._url = url;
+        this.host = url;
         this.timeoutAfterMs = timeoutMs
         new URL(url) // Validate the URL
     }
@@ -197,7 +223,10 @@ export class Panoramax {
 
     public async fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
         init ??= {}
-        init.signal = AbortSignal.timeout(this.timeoutAfterMs)
+        init.signal ??= AbortSignal.timeout(this.timeoutAfterMs)
+        if (url.startsWith("/")) {
+            url = this.host + url
+        }
         const res = await fetch(url, init);
 
         if (!res.ok) {
@@ -213,7 +242,7 @@ export class Panoramax {
      */
     public async* sequences(): AsyncIterableIterator<Sequence> {
         const service = new FeatureService({
-            baseUrl: this._url
+            baseUrl: this.host
         });
         const collections = await service.getCollections();
 
@@ -231,7 +260,7 @@ export class Panoramax {
     }
 
     public url(...endpoint: (string | number)[]): string {
-        return this._url + endpoint.join("/") + "/"
+        return this.host + endpoint.join("/") + "/"
     }
 
     /***
@@ -251,11 +280,11 @@ export class Panoramax {
      * @param sequenceId
      */
     public async imageInfo(imageId: string, sequenceId?: string): Promise<ImageData> {
-        if(!Panoramax.isId(imageId)){
-            throw "Invalid imageId: "+imageId
+        if (!Panoramax.isId(imageId)) {
+            throw "Invalid imageId: " + imageId
         }
-        if(sequenceId && !Panoramax.isId(sequenceId)){
-            throw "Invalid sequenceId: "+sequenceId
+        if (sequenceId && !Panoramax.isId(sequenceId)) {
+            throw "Invalid sequenceId: " + sequenceId
         }
         let imageData: ImageData
         if (sequenceId) {
@@ -275,7 +304,7 @@ export class Panoramax {
 
     private makeAbsolute(l: AssetLink): AssetLink {
         if (l.href.startsWith("/")) {
-            const host = new URL(this._url)
+            const host = new URL(this.host)
             const href = host.protocol + "//" + host.host + "/" + l.href
             return {
                 ...l,
@@ -286,7 +315,29 @@ export class Panoramax {
     }
 
     public login(token: string): AuthorizedPanoramax {
-        return new AuthorizedPanoramax(this._url, token, this.timeoutAfterMs)
+        return new AuthorizedPanoramax(this.host, token, this.timeoutAfterMs)
+    }
+
+    /**
+     * Report a picture as inappropriate and request deletion from the server
+     */
+    public report(data: {
+        issue: ReportReason,
+        picture_id: string,
+        reporter_comments?: string,
+        reporter_email?: string,
+        sequence_id: string
+    }): Promise<Report> {
+        return this.fetchJson(
+            this.url("reports"),
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(data),
+            }
+        )
     }
 
     /**
@@ -301,16 +352,16 @@ export class Panoramax {
         }
         if (filters.ids) {
             for (const id of filters.ids) {
-                if(!Panoramax.isId(id)){
-                    throw "Invalid id in `ids`-list: "+id
+                if (!Panoramax.isId(id)) {
+                    throw "Invalid id in `ids`-list: " + id
                 }
             }
             options.push("ids=" + filters.ids.join(","))
         }
         if (filters.collections) {
             for (const id of filters.collections) {
-                if(!Panoramax.isId(id)){
-                    throw "Invalid id in `collections`-list: "+id
+                if (!Panoramax.isId(id)) {
+                    throw "Invalid id in `collections`-list: " + id
                 }
             }
             options.push("collections=" + filters.collections.join(","))
@@ -334,7 +385,7 @@ export class Panoramax {
         if (body) {
             result = await this.fetchJson(url, {
                 headers: {
-                    "request/type": "application/json"
+                    "request:type": "application/json"
                 },
                 body: JSON.stringify(body)
             })
@@ -354,10 +405,10 @@ export class Panoramax {
         zoom?: 15 | number
         focus?: "pic" | "map"
     }) {
-        const host = new URL(this._url).host
+        const host = new URL(this.host).host
 
-        if(options.imageId && !Panoramax.isId(options.imageId)){
-            throw "Invalid imageId: "+options.imageId
+        if (options.imageId && !Panoramax.isId(options.imageId)) {
+            throw "Invalid imageId: " + options.imageId
         }
 
         let url = "https://" + host + "/#"
@@ -421,6 +472,10 @@ export class AuthorizedPanoramax extends Panoramax {
         let headers: Record<string, string> = <any>init?.headers ?? {}
         headers["Authorization"] = "Bearer " + this._bearerToken
         init.headers = headers
+        if (url.startsWith("/")) {
+            url = this.host + url
+            url = url.replace("//","/")
+        }
         return await fetch(url, init)
     }
 
@@ -428,7 +483,7 @@ export class AuthorizedPanoramax extends Panoramax {
         const res = await this.fetch(url, init);
 
         if (!res.ok) {
-            throw new Error(res.status+" "+res.statusText+": "+await res.text());
+            throw new Error(res.status + " " + res.statusText + ": " + await res.text());
         }
 
         return <T>await res.json();
@@ -450,6 +505,12 @@ export class AuthorizedPanoramax extends Panoramax {
         return <any>collection.links.filter(l => l.rel === "child")
     }
 
+    /**
+     * Upload a single image to the specified collection
+     * @param image
+     * @param sequence
+     * @param options
+     */
     public async addImage(image: Blob, sequence: {
         id: string,
         "stats:items": { count: number }
@@ -484,7 +545,7 @@ export class AuthorizedPanoramax extends Panoramax {
         for (const key in options?.exifOverride ?? {}) {
             const value = options?.exifOverride?.[key]
             if (value) {
-                body.append("override_Exif.Image." + key, value)
+                body.append("override_Exif.Image" + key, value)
             }
         }
         body.append("picture", image)

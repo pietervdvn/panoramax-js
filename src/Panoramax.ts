@@ -545,7 +545,7 @@ export class AuthorizedPanoramax extends Panoramax {
         for (const key in options?.exifOverride ?? {}) {
             const value = options?.exifOverride?.[key]
             if (value) {
-                body.append("override_Exif.Image" + key, value)
+                body.append("override_Exif.Image." + key, value)
             }
         }
         body.append("picture", image)

@@ -27,15 +27,24 @@ export interface AssetLink {
 
 export type ImageData =
     Feature<Point, {
+        created?: string,
+        license?: string,
+        datetime?: string,
+        datetimetz?: string,
+        "geovisio:image"?: string,
         "geovisio:producer": string,
         "geovisio:license": string,
+        "geovisio:thumbnail": string,
+        "original_file:name": string,
+        "original_file:size": number,
         /**
          * Compass direction
          */
         "view:azimuth": number,
-        "datetime": string,
         "geovisio:status": string | "ready" | "broken" | "preparing" | "waiting-for-process",
-        exif: Record<string, string> & {
+        exif: {
+            [key: string]: string | undefined,
+            "Exif.Image.Artist"?: string,
             "Xmp.GPano.ProjectionType"?: string | "equirectangular"
         }
     }>

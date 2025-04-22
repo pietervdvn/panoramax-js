@@ -392,9 +392,12 @@ export class Panoramax {
             options.push("bbox=" + filters.bbox.join(","))
         }
         if(filters.place){
-            options.push("place=("+filters.place[0]+","+filters.place[1]+")")
+            options.push("place_position="+filters.place[0]+","+filters.place[1]+"")
             if(filters.place_distance){
                 options.push("place_distance=0-"+filters.place_distance)
+            }
+            if(filters.place_fov_tolerance){
+                options.push("place_fov_tolerance="+filters.place_fov_tolerance)
             }
             if(filters.bbox){
                 throw "Invalid combination: either use 'place' OR 'bbox' but not both"

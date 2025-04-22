@@ -99,30 +99,8 @@ export interface Sequence extends ICollection {
     updated: Date
 }
 
-export interface SearchOptions {
-    /**
-     * Array of numbers or Array of numbers
-     *
-     * Only features that have a geometry that intersects the bounding box are selected. The bounding box is provided as four or six numbers, depending on whether the coordinate reference system includes a vertical axis (height or depth):
-     *
-     *     Lower left corner, coordinate axis 1
-     *     Lower left corner, coordinate axis 2
-     *     Minimum value, coordinate axis 3 (optional)
-     *     Upper right corner, coordinate axis 1
-     *     Upper right corner, coordinate axis 2
-     *     Maximum value, coordinate axis 3 (optional)
-     *
-     * The coordinate reference system of the values is WGS 84 longitude/latitude (http://www.opengis.net/def/crs/OGC/1.3/CRS84).
-     *
-     * For WGS 84 longitude/latitude the values are in most cases the sequence of minimum longitude, minimum latitude, maximum longitude and maximum latitude. However, in cases where the box spans the antimeridian the first value (west-most box edge) is larger than the third value (east-most box edge).
-     *
-     * If the vertical axis is included, the third and the sixth number are the bottom and the top of the 3-dimensional bounding box.
-     *
-     * If a feature has multiple spatial geometry properties, it is the decision of the server whether only a single spatial geometry property is used to determine the extent or all relevant geometries.
-     *
-     * Example: The bounding box of the New Zealand Exclusive Economic Zone in WGS 84 (from 160.6°E to 170°W and from 55.95°S to 25.89°S) would be represented in JSON as [160.6, -55.95, -170, -25.89] and in a query as bbox=160.6,-55.95,-170,-25.89.
-     */
-    bbox?: [number, number, number, number]
+export type SearchOptions = {
+
 
     /**
      * pointGeoJSON (object) or multipointGeoJSON (object) or linestringGeoJSON (object) or multilinestringGeoJSON (object) or polygonGeoJSON (object) or multipolygonGeoJSON (object) or geometrycollectionGeoJSON (object) (geometryGeoJSON)
@@ -172,6 +150,60 @@ export interface SearchOptions {
      * Array of Collection IDs to include in the search for items. Only Item objects in one of the provided collections will be searched
      */
     collections?: string[]
+
+        /**
+         * Geographical coordinates (lon,lat) of a place you'd like to have pictures of. Returned pictures are either 360° or looking in direction of wanted place.
+         */
+        place?: [number,number]  ,
+    /**
+     * Maximum number of meters that the pictures might be away from `place`
+     */
+        place_distance?: number
+
+    /**
+     * integer
+     * (query)
+     *
+     *
+     * Tolerance on how much the place should be centered in nearby pictures:
+     *
+     *     A lower value means place have to be at the very center of picture
+     *     A higher value means place could be more in picture sides
+     *
+     * Value is expressed in degrees (from 2 to 180, defaults to 30°), and represents the acceptable field of view relative to picture heading. Only used if place_position parameter is defined.
+     *
+     * Example values are:
+     *
+     *     <= 30° for place to be in the very center of picture
+     *     60° for place to be in recognizable human field of view
+     *     180° for place to be anywhere in a wide-angle picture
+     *
+     * Note that this parameter is not taken in account for 360° pictures, as by definition a nearby place would be theorically always visible in it.
+     */
+    place_fov_tolerance?: number
+    /**
+     * Array of numbers or Array of numbers
+     *
+     * Only features that have a geometry that intersects the bounding box are selected. The bounding box is provided as four or six numbers, depending on whether the coordinate reference system includes a vertical axis (height or depth):
+     *
+     *     Lower left corner, coordinate axis 1
+     *     Lower left corner, coordinate axis 2
+     *     Minimum value, coordinate axis 3 (optional)
+     *     Upper right corner, coordinate axis 1
+     *     Upper right corner, coordinate axis 2
+     *     Maximum value, coordinate axis 3 (optional)
+     *
+     * The coordinate reference system of the values is WGS 84 longitude/latitude (http://www.opengis.net/def/crs/OGC/1.3/CRS84).
+     *
+     * For WGS 84 longitude/latitude the values are in most cases the sequence of minimum longitude, minimum latitude, maximum longitude and maximum latitude. However, in cases where the box spans the antimeridian the first value (west-most box edge) is larger than the third value (east-most box edge).
+     *
+     * If the vertical axis is included, the third and the sixth number are the bottom and the top of the 3-dimensional bounding box.
+     *
+     * If a feature has multiple spatial geometry properties, it is the decision of the server whether only a single spatial geometry property is used to determine the extent or all relevant geometries.
+     *
+     * Example: The bounding box of the New Zealand Exclusive Economic Zone in WGS 84 (from 160.6°E to 170°W and from 55.95°S to 25.89°S) would be represented in JSON as [160.6, -55.95, -170, -25.89] and in a query as bbox=160.6,-55.95,-170,-25.89.
+     */
+    bbox?: [number, number, number, number]
 }
 
 export const REPORT_REASONS = ["blur_missing",
@@ -356,8 +388,17 @@ export class Panoramax {
      */
     public async search(filters: SearchOptions): Promise<ImageData[]> {
         const options: string[] = []
-        if (filters.bbox) {
+        if (filters["bbox"]) {
             options.push("bbox=" + filters.bbox.join(","))
+        }
+        if(filters.place){
+            options.push("place=("+filters.place[0]+","+filters.place[1]+")")
+            if(filters.place_distance){
+                options.push("place_distance=0-"+filters.place_distance)
+            }
+            if(filters.bbox){
+                throw "Invalid combination: either use 'place' OR 'bbox' but not both"
+            }
         }
         if (filters.ids) {
             for (const id of filters.ids) {

@@ -151,14 +151,16 @@ export type SearchOptions = {
      */
     collections?: string[]
 
-        /**
-         * Geographical coordinates (lon,lat) of a place you'd like to have pictures of. Returned pictures are either 360° or looking in direction of wanted place.
-         */
-        place?: [number,number]  ,
     /**
-     * Maximum number of meters that the pictures might be away from `place`
+     * Geographical coordinates (lon,lat) of a place you'd like to have pictures of. Returned pictures are either 360° or looking in direction of wanted place.
      */
-        place_distance?: number
+    place?: [number, number],
+    /**
+     * Maximum number of meters that the pictures might be away from `place` OR an array giving [min_distance, max_distance]
+     */
+    place_distance?: number | [number,number]
+
+
 
     /**
      * integer
@@ -391,15 +393,19 @@ export class Panoramax {
         if (filters["bbox"]) {
             options.push("bbox=" + filters.bbox.join(","))
         }
-        if(filters.place){
-            options.push("place_position="+filters.place[0]+","+filters.place[1]+"")
-            if(filters.place_distance){
-                options.push("place_distance=0-"+filters.place_distance)
+        if (filters.place) {
+            options.push("place_position=" + filters.place[0] + "," + filters.place[1] + "")
+            if (filters.place_distance) {
+                if(Array.isArray(filters.place_distance)){
+                    options.push("place_distance=" + filters.place_distance.join("-"))
+                }else{
+                    options.push("place_distance=0-" + filters.place_distance)
+                }
             }
-            if(filters.place_fov_tolerance){
-                options.push("place_fov_tolerance="+filters.place_fov_tolerance)
+            if (filters.place_fov_tolerance) {
+                options.push("place_fov_tolerance=" + filters.place_fov_tolerance)
             }
-            if(filters.bbox){
+            if (filters.bbox) {
                 throw "Invalid combination: either use 'place' OR 'bbox' but not both"
             }
         }
@@ -527,7 +533,7 @@ export class AuthorizedPanoramax extends Panoramax {
         init.headers = headers
         if (url.startsWith("/")) {
             url = this.host + url
-            url = url.replace("//","/")
+            url = url.replace("//", "/")
         }
         return await fetch(url, init)
     }

@@ -526,11 +526,15 @@ export class AuthorizedPanoramax extends Panoramax {
         this._bearerToken = bearerToken;
     }
 
+    public addAuthHeaders(headers: Record<string, string> = {}) {
+        headers = {...headers}
+        headers["Authorization"] = "Bearer " + this._bearerToken
+        return headers
+    }
+
     public async fetch(url: string, init: RequestInit | undefined = undefined) {
         init ??= <RequestInit>{}
-        let headers: Record<string, string> = <any>init?.headers ?? {}
-        headers["Authorization"] = "Bearer " + this._bearerToken
-        init.headers = headers
+        init.headers = this.addAuthHeaders(<Record<string, string>>init.headers)
         if (url.startsWith("/")) {
             url = this.host + url
             url = url.replace("//", "/")
@@ -578,42 +582,66 @@ export class AuthorizedPanoramax extends Panoramax {
         lon?: number, // WGS84
         lat?: number, // WGS84
         exifOverride?: Record<string, string>,
-        isBlurred?: boolean
+        isBlurred?: boolean,
+        onProgress?: (progress: ProgressEvent) => void
     }): Promise<Feature<Point> & { id: string }> {
-        let seqId: string
-        if (typeof sequence !== "string") {
-            seqId = sequence.id
-        } else {
-            seqId = sequence
-        }
-
-        const body = new FormData()
-        body.append("isBlurred", options?.isBlurred ? "true" : "false")
-        const position = sequence["stats:items"].count + 1 // position starts from 1
-        body.append("position", "" + position)
-        if (options?.lat) {
-            body.append("override_latitude", "" + options.lat)
-        }
-        if (options?.lon) {
-            body.append("override_longitude", "" + options.lon)
-        }
-        if (options?.datetime) {
-            body.append("override_capture_time", "" + options.datetime)
-        }
-
-        for (const key in options?.exifOverride ?? {}) {
-            const value = options?.exifOverride?.[key]
-            if (value) {
-                body.append("override_Exif.Image." + key, value)
+        return new Promise((resolve, reject) => {
+            let seqId: string
+            if (typeof sequence !== "string") {
+                seqId = sequence.id
+            } else {
+                seqId = sequence
             }
-        }
-        body.append("picture", image)
 
-        return this.fetchJson(this.url("collections", seqId, "items"), {
-            method: "POST",
-            body
+            const body = new FormData()
+            body.append("isBlurred", options?.isBlurred ? "true" : "false")
+            const position = sequence["stats:items"].count + 1 // position starts from 1
+            body.append("position", "" + position)
+            if (options?.lat) {
+                body.append("override_latitude", "" + options.lat)
+            }
+            if (options?.lon) {
+                body.append("override_longitude", "" + options.lon)
+            }
+            if (options?.datetime) {
+                body.append("override_capture_time", "" + options.datetime)
+            }
+
+            for (const key in options?.exifOverride ?? {}) {
+                const value = options?.exifOverride?.[key]
+                if (value) {
+                    body.append("override_Exif.Image." + key, value)
+                }
+            }
+
+            body.append("picture", image)
+
+            const xhr = new XMLHttpRequest();
+            if (options?.onProgress !== undefined) {
+                xhr.upload.addEventListener("progress", (ev) => {
+                    const f: ((progress: ProgressEvent) => void) | undefined = options.onProgress
+                    if (f) {
+                        f(ev)
+                    }
+                })
+            }
+            xhr.onload = function () {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    resolve(JSON.parse(xhr.responseText));
+                } else {
+                    reject(new Error(xhr.statusText));
+                }
+            };
+            xhr.onerror = function () {
+                reject(new Error("Network error"));
+            };
+            xhr.open("POST", this.url("collections", seqId, "items"));
+            const headers = this.addAuthHeaders()
+            for (const key in headers) {
+                xhr.setRequestHeader(key, headers[key])
+            }
+            xhr.send(body);
         })
-
     }
 
 }

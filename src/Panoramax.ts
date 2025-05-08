@@ -512,8 +512,18 @@ interface Token {
     ]
 }
 
+export interface AddImageOptions  {
+    datetime?: string,
+    lon?: number, // WGS84
+    lat?: number, // WGS84
+    exifOverride?: Record<string, string>,
+    isBlurred?: boolean,
+    onProgress?: (progress: ProgressEvent) => void,
+    indexInSequence?: number
+}
+
 export class AuthorizedPanoramax extends Panoramax {
-    private _bearerToken: string;
+    private readonly _bearerToken: string;
 
 
     /**
@@ -570,33 +580,14 @@ export class AuthorizedPanoramax extends Panoramax {
 
     /**
      * Upload a single image to the specified collection
-     * @param image
-     * @param sequence
-     * @param options
      */
-    public async addImage(image: Blob, sequence: {
-        id: string,
-        "stats:items": { count: number }
-    }, options?: {
-        datetime?: string,
-        lon?: number, // WGS84
-        lat?: number, // WGS84
-        exifOverride?: Record<string, string>,
-        isBlurred?: boolean,
-        onProgress?: (progress: ProgressEvent) => void
-    }): Promise<Feature<Point> & { id: string }> {
+    public async addImage(image: Blob, sequenceId: string, options?: AddImageOptions): Promise<Feature<Point> & { id: string }> {
         return new Promise((resolve, reject) => {
-            let seqId: string
-            if (typeof sequence !== "string") {
-                seqId = sequence.id
-            } else {
-                seqId = sequence
-            }
-
             const body = new FormData()
             body.append("isBlurred", options?.isBlurred ? "true" : "false")
-            const position = sequence["stats:items"].count + 1 // position starts from 1
-            body.append("position", "" + position)
+            if (options?.indexInSequence !== undefined) {
+                body.append("position", "" + options.indexInSequence)
+            }
             if (options?.lat) {
                 body.append("override_latitude", "" + options.lat)
             }
@@ -635,7 +626,7 @@ export class AuthorizedPanoramax extends Panoramax {
             xhr.onerror = function () {
                 reject(new Error("Network error"));
             };
-            xhr.open("POST", this.url("collections", seqId, "items"));
+            xhr.open("POST", this.url("collections", sequenceId, "items"));
             const headers = this.addAuthHeaders()
             for (const key in headers) {
                 xhr.setRequestHeader(key, headers[key])

@@ -24,6 +24,7 @@ export interface AssetLink {
     title: string;
 
 }
+export type GeovisioStatus = string | "ready" | "broken" | "preparing" | "waiting-for-process"
 
 export type ImageData =
     Feature<Point, {
@@ -41,7 +42,7 @@ export type ImageData =
          * Compass direction
          */
         "view:azimuth": number,
-        "geovisio:status": string | "ready" | "broken" | "preparing" | "waiting-for-process",
+        "geovisio:status": GeovisioStatus,
         exif: {
             [key: string]: string | undefined,
             "Exif.Image.Artist"?: string,
@@ -81,7 +82,6 @@ export interface PictureProperties {
      */
     model: string
 }
-
 export interface Sequence extends ICollection {
     created: Date,
     description: string | "A sequence of geolocated pictures",
@@ -96,7 +96,11 @@ export interface Sequence extends ICollection {
     stac_version: string,
     "stats:items": { count: number },
     type: "Collection",
-    updated: Date
+    updated: Date,
+    href: string
+    "geovisio:length_km": number
+    "geovisio:status": GeovisioStatus
+
 }
 
 export type SearchOptions = {
@@ -265,18 +269,22 @@ export class Panoramax {
     }
 
     public async fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-        init ??= {}
+        const res = await this.fetch(url, init);
+        const body = await res.text()
+        return <T>JSON.parse(body);
+    }
+
+    public async fetch(url: string, init?: RequestInit): Promise<Response> {
+        init ??= <RequestInit>{}
         init.signal ??= AbortSignal.timeout(this.timeoutAfterMs)
         if (url.startsWith("/")) {
-            url = this.host + url
+            url = this.host + url.slice(1)
         }
-        const res = await fetch(url, init);
-
+        const res = await fetch(url, init)
         if (!res.ok) {
-            throw new Error(res.statusText);
+            throw new Error(res.status + " " + res.statusText + ": " + await res.text());
         }
-
-        return <T>await res.json();
+        return res
     }
 
     /**
@@ -449,7 +457,6 @@ export class Panoramax {
                 body: JSON.stringify(body)
             })
         } else {
-            console.log(url)
             result = await this.fetchJson(url)
         }
         return result.features
@@ -536,30 +543,20 @@ export class AuthorizedPanoramax extends Panoramax {
         this._bearerToken = bearerToken;
     }
 
-    public addAuthHeaders(headers: Record<string, string> = {}) {
-        headers = {...headers}
-        headers["Authorization"] = "Bearer " + this._bearerToken
-        return headers
+    public createAuthHeader(): Record<string, string> {
+        return {Authorization: "Bearer " + this._bearerToken}
     }
 
-    public async fetch(url: string, init: RequestInit | undefined = undefined) {
-        init ??= <RequestInit>{}
-        init.headers = this.addAuthHeaders(<Record<string, string>>init.headers)
-        if (url.startsWith("/")) {
-            url = this.host + url
-            url = url.replace("//", "/")
-        }
-        return await fetch(url, init)
+    public async fetch(url: string, init: RequestInit | undefined = undefined): Promise<Response> {
+        init ??= {}
+        init.headers = {...init.headers, ...(this.createAuthHeader())}
+        return super.fetch(url, init)
     }
 
     async fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-        const res = await this.fetch(url, init);
-
-        if (!res.ok) {
-            throw new Error(res.status + " " + res.statusText + ": " + await res.text());
-        }
-
-        return <T>await res.json();
+        init ??= {}
+        init.headers = {...init.headers, ...(this.createAuthHeader())}
+        return super.fetchJson(url, init)
     }
 
     public async createCollection(title?: string): Promise<ICollection> {
@@ -627,7 +624,7 @@ export class AuthorizedPanoramax extends Panoramax {
                 reject(new Error("Network error"));
             };
             xhr.open("POST", this.url("collections", sequenceId, "items"));
-            const headers = this.addAuthHeaders()
+            const headers = this.createAuthHeader()
             for (const key in headers) {
                 xhr.setRequestHeader(key, headers[key])
             }

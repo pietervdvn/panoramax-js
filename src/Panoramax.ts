@@ -10,6 +10,7 @@ export interface Extent {
     }
 }
 
+
 export interface AssetLink {
     description: string,
     roles: string[],
@@ -25,7 +26,10 @@ export interface AssetLink {
 
 }
 export type GeovisioStatus = string | "ready" | "broken" | "preparing" | "waiting-for-process"
-
+/**
+ * https://docs.panoramax.fr/backend/install/deep_dive/visibility/
+ */
+export type GeovisioVisibility = string | "anyone" | "owner-only" | "logged-only"
 export type ImageData =
     Feature<Point, {
         created?: string,
@@ -68,7 +72,7 @@ export interface PictureProperties {
      */
     ts: string
     /**
-     * COmpass angle in degrees
+     * Compass angle in degrees
      */
     heading: number
     /**
@@ -100,6 +104,7 @@ export interface Sequence extends ICollection {
     href: string
     "geovisio:length_km": number
     "geovisio:status": GeovisioStatus
+    "geovisio:visibility": GeovisioVisibility
 
 }
 
@@ -630,6 +635,21 @@ export class AuthorizedPanoramax extends Panoramax {
             }
             xhr.send(body);
         })
+    }
+
+    public async changeSequenceProperties(collectionId: string, body: { visibility?: GeovisioVisibility }) {
+        // PATCH    https://panoramax.mapcomplete.org/api/collections/1febabae-6643-43d6-b870-5806e1da4970
+        // body: {"visibility":"logged-only"}
+        const url = this.url("collections", collectionId)
+        console.log("URL", url)
+       const response = await this.fetch(url, {
+            method:"PATCH",
+           headers:{
+                "Content-type":"Application/json"
+           },
+            body: JSON.stringify(body)
+        })
+        return await response.json()
     }
 
 }

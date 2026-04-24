@@ -575,7 +575,7 @@ export class AuthorizedPanoramax extends Panoramax {
      *  Gets (the links to) all the sequences that were created by the currently logged in user.
      *  All returned links will have `rel === "child"`
      */
-    public async mySequences(): Promise<(ILink & { id: string, extent: Extent, "stats:items": { count: number } })[]> {
+    public async mySequences(): Promise<(Sequence & ILink & { id: string, extent: Extent, "stats:items": { count: number } })[]> {
         const collection = await this.fetchJson<IGetCollectionsResponse>(this.url("users", "me", "collection"))
         return <any>collection.links.filter(l => l.rel === "child")
     }

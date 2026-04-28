@@ -1,3 +1,7 @@
+# We moved!
+
+Find the continued development here: https://source.mapcomplete.org/MapComplete/panoramax-js
+
 # panoramax-js
 
 Simple panoramax SDK to upload pictures and use some common API-endpoints in a typed way.

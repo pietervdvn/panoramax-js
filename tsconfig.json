@@ -9,9 +9,7 @@
     "declaration": true,
     "outDir": "./dist",
     "rootDir": "src",
-    "types": [
-      "node"
-    ],
+    "types": [],
     "strict": true,
     "esModuleInterop": true,
     "resolveJsonModule": false,

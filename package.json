@@ -9,7 +9,7 @@
   "scripts": {
     "build": "tsc -project .",
     "publish": "npm run build && npm publish",
-    "test": "ts-node test/test.ts"
+    "test": "jest"
   },
   "author": "Pieter Vander Vennet",
   "license": "GPL-3.0-or-later",
@@ -17,9 +17,17 @@
     "@ogcapi-js/features": "^1.1.1",
     "@ogcapi-js/shared": "^1.1.1",
     "@types/geojson": "^7946.0.14",
-    "json-schema": "^0.4.0"
+    "json-schema": "^0.4.0",
+    "ts-jest": "^29.4.9"
   },
   "devDependencies": {
-    "@types/json-schema": "^7.0.15"
+    "@types/json-schema": "^7.0.15",
+    "jest": "^30.3.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3"
+  },
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node"
   }
 }
